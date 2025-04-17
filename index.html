@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Accident.com Lead Checker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body class="bg-light">
+  <div class="container mt-5">
+    <h2 class="mb-4">🔍 Accident.com - Check for Duplicate Lead</h2>
+    
+    <form id="leadForm" class="card p-4 shadow-sm">
+      <div class="mb-3">
+        <label for="leadEmail" class="form-label">Email address</label>
+        <input type="email" class="form-control" id="leadEmail" name="lead_email" required>
+      </div>
+      <div class="mb-3">
+        <label for="leadPhone" class="form-label">Phone number</label>
+        <input type="tel" class="form-control" id="leadPhone" name="lead_phone" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Check Lead</button>
+    </form>
+
+    <div id="responseMessage" class="mt-4"></div>
+  </div>
+
+  <script>
+    document.getElementById('leadForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const email = document.getElementById('leadEmail').value;
+      const phone = document.getElementById('leadPhone').value;
+      const responseBox = document.getElementById('responseMessage');
+
+      responseBox.innerHTML = '<div class="alert alert-info">Checking lead, please wait...</div>';
+
+      try {
+        const response = await fetch('http://localhost:5000/check-lead', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            lead_email: email,
+            lead_phone: phone
+          })
+        });
+
+        if (response.ok) {
+          const text = await response.text();
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(text, "application/xml");
+
+          const status = xml.querySelector("status")?.textContent;
+          const duplicate = xml.querySelector("duplicate")?.textContent;
+          const problems = xml.querySelectorAll("problems");
+
+          if (status === "success") {
+            if (duplicate === "true") {
+              responseBox.innerHTML = `<div class="alert alert-warning">⚠️ Duplicate lead found!</div>`;
+            } else {
+              responseBox.innerHTML = `<div class="alert alert-success">✅ No duplicate found.</div>`;
+            }
+          } else if (problems.length > 0) {
+            let problemList = '';
+            problems.forEach(p => {
+              problemList += `<li>${p.textContent}</li>`;
+            });
+            responseBox.innerHTML = `<div class="alert alert-danger"><strong>Validation Errors:</strong><ul>${problemList}</ul></div>`;
+          } else {
+            responseBox.innerHTML = `<div class="alert alert-danger">❌ Unknown error occurred.</div>`;
+          }
+        } else {
+          const errorJson = await response.json();
+          responseBox.innerHTML = `<div class="alert alert-danger">Server Error: ${errorJson.message}</div>`;
+        }
+
+      } catch (err) {
+        console.error(err);
+        responseBox.innerHTML = `<div class="alert alert-danger">❌ Network error or server not reachable.</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
